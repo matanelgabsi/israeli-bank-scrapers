@@ -2,7 +2,7 @@ import moment from 'moment';
 import { BaseScraperWithBrowser, LOGIN_RESULT } from './base-scraper-with-browser';
 import { waitForRedirect, waitForNavigation } from '../helpers/navigation';
 import { fillInput, clickButton, waitUntilElementFound } from '../helpers/elements-interactions';
-import { SHEKEL_CURRENCY, NORMAL_TXN_TYPE } from '../constants';
+import { SHEKEL_CURRENCY, NORMAL_TXN_TYPE, SHEKEL_CURRENCY_SYMBOL } from '../constants';
 
 const BASE_URL = 'https://online.bankotsar.co.il';
 const DATE_FORMAT = 'DD/MM/YY';
@@ -27,10 +27,22 @@ function createLoginFields(credentials) {
   ];
 }
 
-function getAmountData(amountStr) {
+function getAmountData(amountStr, hasCurrency = false) {
   const amountStrCopy = amountStr.replace(',', '');
-  const amount = parseFloat(amountStrCopy);
-  const currency = SHEKEL_CURRENCY;
+  let currency = null;
+  let amount = null;
+  if (!hasCurrency) {
+    const amountStrCopy = amountStr.replace(',', '');
+    amount = parseFloat(amountStrCopy);
+    currency = SHEKEL_CURRENCY;
+  } else if (amountStrCopy.includes(SHEKEL_CURRENCY_SYMBOL)) {
+    amount = parseFloat(amountStrCopy.replace(SHEKEL_CURRENCY_SYMBOL, ''));
+    currency = SHEKEL_CURRENCY;
+  } else {
+    const parts = amountStrCopy.split(' ');
+    amount = parseFloat(parts[0]);
+    [, currency] = parts;
+  }
 
   return {
     amount,
@@ -84,7 +96,7 @@ async function readPage(page) {
         changedTransaction.credit = innerText;
       } else if (classList.includes('debit')) {
         changedTransaction.debit = innerText;
-      } else if (classList.includes('balanc')) {
+      } else if (classList.includes('balance')) {
         changedTransaction.balance = innerText;
       }
       txns.push(changedTransaction);
@@ -94,7 +106,33 @@ async function readPage(page) {
   return txns;
 }
 
+async function getAccountSummary(page) {
+  let summary;
+  try {
+    const balanceElm = await page.$('.current_balance');
+    const balance = await balanceElm.getProperty('innerText');
+    const balanceValue = getAmountData(await balance.jsonValue(), true);
+    // TODO: Find the credit field in bank website (could see it in my account)
+    summary = {
+      balance: Number.isNaN(balanceValue.amount) ? 0 : balanceValue.amount,
+      creditLimit: 0.0,
+      creditUtilization: 0.0,
+      balanceCurrency: balanceValue.currency,
+    };
+  } catch (err) {
+    // Just in case
+    summary = {
+      balance: 0.0,
+      creditLimit: 0.0,
+      creditUtilization: 0.0,
+      balanceCurrency: 'ILS',
+    };
+  }
+  return summary;
+}
+
 async function fetchTransactionsForAccount(page, startDate) {
+  const summary = await getAccountSummary(page);
   await waitUntilElementFound(page, 'input#fromDate');
   // Get account number
   const snifNmbr = await page.$eval('.branch_num', (span) => {
@@ -104,7 +142,7 @@ async function fetchTransactionsForAccount(page, startDate) {
   const accountNmbr = await page.$eval('.acc_num', (span) => {
     return span.innerText;
   });
-  const accountNumber = `${snifNmbr}-${accountNmbr}`;
+  const accountNumber = `14-${snifNmbr}-${accountNmbr}`;
   // Search for relavant transaction from startDate
   await clickButton(page, '#tabHeader4');
   await fillInput(
@@ -115,28 +153,32 @@ async function fetchTransactionsForAccount(page, startDate) {
 
   await clickButton(page, '#fibi_tab_dates .fibi_btn:nth-child(2)');
   await waitForNavigation(page);
-  await waitUntilElementFound(page, 'table#dataTable077');
+  await waitUntilElementFound(page, 'table#dataTable077, #NO_DATA077');
   let hasNextPage = true;
   let txns = [];
 
-  // Scape transactions (this maybe spanned on multiple pages)
-  while (hasNextPage) {
-    const pageTxns = await readPage(page);
-    txns = txns.concat(pageTxns);
-    const button = await page.$('#Npage');
-    hasNextPage = false;
-    if (button != null) {
-      hasNextPage = true;
-    }
-    if (hasNextPage) {
-      await clickButton(page, '#Npage');
-      await waitForNavigation(page);
-      await waitUntilElementFound(page, 'table#dataTable077');
+  const noTransactionElm = await page.$('#NO_DATA077');
+  if (noTransactionElm == null) {
+    // Scape transactions (this maybe spanned on multiple pages)
+    while (hasNextPage) {
+      const pageTxns = await readPage(page);
+      txns = txns.concat(pageTxns);
+      const button = await page.$('#Npage');
+      hasNextPage = false;
+      if (button != null) {
+        hasNextPage = true;
+      }
+      if (hasNextPage) {
+        await clickButton(page, '#Npage');
+        await waitForNavigation(page);
+        await waitUntilElementFound(page, 'table#dataTable077');
+      }
     }
   }
-  console.log(txns);
+
   return {
     accountNumber,
+    summary,
     txns: convertTransactions(txns.slice(1)), // Remove first line which is "opening balance"
   };
 }
