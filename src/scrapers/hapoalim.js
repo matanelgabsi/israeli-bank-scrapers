@@ -27,7 +27,6 @@ function convertTransactions(txns) {
 
 async function fetchAccountData(page, options) {
   const currentUrl = await getCurrentUrl(page, true);
-  console.log(currentUrl);
   let subfolder = 'ssb';
   if (currentUrl.includes('portalserver')) {
     subfolder = 'portalserver';
