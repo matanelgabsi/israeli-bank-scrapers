@@ -177,7 +177,8 @@ async function fetchTransactionsForAccount(page, startDate) {
     return option.innerText;
   });
 
-  const accountNumber = selectedSnifAccount.replace('/', '_');
+  const snifAccount = selectedSnifAccount.replace('/', '_').replace(' ', '');
+  const accountNumber = `10-${snifAccount}`;
 
   const pendingTxns = await extractPendingTransactionsFromPage(page);
   const completedTxns = await extractCompletedTransactionsFromPage(page);
