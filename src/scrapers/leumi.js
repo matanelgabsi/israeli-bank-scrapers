@@ -158,14 +158,22 @@ async function fetchTransactionsForAccount(page, startDate) {
   );
   await clickButton(page, 'input#btnDisplayDates');
   await waitForNavigation(page);
-  await waitUntilElementFound(page, 'table#WorkSpaceBox table#ctlActivityTable');
-  await clickButton(page, 'a#lnkCtlExpandAll');
+  await waitUntilElementFound(page, 'table#WorkSpaceBox table#ctlActivityTable, #NOINFORMATIONREGIONSERVERSIDEERROR');
 
   const selectedSnifAccount = await page.$eval('#ddlAccounts_m_ddl option[selected="selected"]', (option) => {
     return option.innerText;
   });
-
   const accountNumber = selectedSnifAccount.replace('/', '_');
+
+  const noTransactionElm = await page.$('#NOINFORMATIONREGIONSERVERSIDEERROR');
+  if (noTransactionElm != null) {
+    return {
+      accountNumber,
+      txns: [],
+    };
+  }
+
+  await clickButton(page, 'a#lnkCtlExpandAll');
 
   const pendingTxns = await extractPendingTransactionsFromPage(page);
   const completedTxns = await extractCompletedTransactionsFromPage(page);
