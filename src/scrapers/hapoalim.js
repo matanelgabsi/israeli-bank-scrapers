@@ -53,11 +53,31 @@ async function fetchAccountData(page, options) {
     const accountNumber = `${accountsInfo[accountIndex].bankNumber}-${accountsInfo[accountIndex].branchNumber}-${accountsInfo[accountIndex].accountNumber}`;
 
     const txnsUrl = `${apiSiteUrl}/current-account/transactions?accountId=${accountNumber}&numItemsPerPage=150&retrievalEndDate=${endDateStr}&retrievalStartDate=${startDateStr}&sortCode=1`;
+    const balanceAndCreditUrl = `${apiSiteUrl}/current-account/composite/balanceAndCreditLimit?accountId=${accountNumber}&view=details`;
 
     const txnsResult = await fetchGetWithinPage(page, txnsUrl);
     const txns = convertTransactions(txnsResult.transactions);
 
+    let summary;
+    try {
+      const summaryResult = await fetchGetWithinPage(page, balanceAndCreditUrl);
+      summary = {
+        balance: summaryResult.currentBalance,
+        creditLimit: summaryResult.creditLimitAmount,
+        creditUtilization: summaryResult.creditLimitUtilizationAmount,
+        balanceCurrency: 'ILS',
+      };
+    } catch (err) {
+      // This would happend to an unactive account.
+      summary = {
+        balance: 0.0,
+        creditLimit: 0.0,
+        creditUtilization: 0.0,
+        balanceCurrency: 'ILS',
+      };
+    }
     accounts.push({
+      summary,
       accountNumber,
       txns,
     });

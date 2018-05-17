@@ -2,7 +2,7 @@ import moment from 'moment';
 import { BaseScraperWithBrowser, LOGIN_RESULT } from './base-scraper-with-browser';
 import { dropdownSelect, fillInput, clickButton, waitUntilElementFound } from '../helpers/elements-interactions';
 import { waitForNavigation } from '../helpers/navigation';
-import { SHEKEL_CURRENCY, NORMAL_TXN_TYPE, TRANSACTION_STATUS } from '../constants';
+import { SHEKEL_CURRENCY, NORMAL_TXN_TYPE, TRANSACTION_STATUS, SHEKEL_CURRENCY_SYMBOL } from '../constants';
 
 const BASE_URL = 'https://hb2.bankleumi.co.il/';
 const DATE_FORMAT = 'DD/MM/YY';
@@ -26,10 +26,22 @@ function createLoginFields(credentials) {
   ];
 }
 
-function getAmountData(amountStr) {
+function getAmountData(amountStr, hasCurrency = false) {
   const amountStrCopy = amountStr.replace(',', '');
-  const amount = parseFloat(amountStrCopy);
-  const currency = SHEKEL_CURRENCY;
+  let currency = null;
+  let amount = null;
+  if (!hasCurrency) {
+    const amountStrCopy = amountStr.replace(',', '');
+    amount = parseFloat(amountStrCopy);
+    currency = SHEKEL_CURRENCY;
+  } else if (amountStrCopy.includes(SHEKEL_CURRENCY_SYMBOL)) {
+    amount = parseFloat(amountStrCopy.replace(SHEKEL_CURRENCY_SYMBOL, ''));
+    currency = SHEKEL_CURRENCY;
+  } else {
+    const parts = amountStrCopy.split(' ');
+    amount = parseFloat(parts[0]);
+    [, currency] = parts;
+  }
 
   return {
     amount,
@@ -163,7 +175,9 @@ async function fetchTransactionsForAccount(page, startDate) {
   const selectedSnifAccount = await page.$eval('#ddlAccounts_m_ddl option[selected="selected"]', (option) => {
     return option.innerText;
   });
-  const accountNumber = selectedSnifAccount.replace('/', '_');
+
+  const snifAccount = selectedSnifAccount.replace('/', '_').replace(' ', '');
+  const accountNumber = `10-${snifAccount}`;
 
   const noTransactionElm = await page.$('#NOINFORMATIONREGIONSERVERSIDEERROR');
   if (noTransactionElm != null) {
@@ -181,9 +195,25 @@ async function fetchTransactionsForAccount(page, startDate) {
     ...pendingTxns,
     ...completedTxns,
   ];
+  const balanceSpan = await page.$('#lblBalancesVal');
+  const balanceTextHandle = await balanceSpan.getProperty('innerText');
+  const balanceValue = getAmountData(await balanceTextHandle.jsonValue(), true);
+
+  // This is a guess, as i can't test it
+  const creditTd = await page.$('#lblCreditLineTd');
+  const creditHandle = await creditTd.getProperty('innerText');
+  const creditValue = getAmountData(await creditHandle.jsonValue(), true);
+
+  const summary = {
+    balance: Number.isNaN(balanceValue.amount) ? 0 : balanceValue.amount,
+    creditLimit: Number.isNaN(creditValue.amount) ? 0 : creditValue.amount,
+    creditUtilization: 0, // Can't find this value
+    balanceCurrency: balanceValue.currency,
+  };
 
   return {
     accountNumber,
+    summary,
     txns: convertTransactions(txns),
   };
 }
