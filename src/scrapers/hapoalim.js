@@ -27,9 +27,9 @@ function convertTransactions(txns) {
 }
 
 function getSubFolder(currentUrl) {
-  if (currentUrl.includes('portalserver')) {
+  if (currentUrl.includes('/portalserver/')) {
     return 'portalserver';
-  } else if (currentUrl.includes('ng-portals')) {
+  } else if (currentUrl.includes('/ng-portals/')) {
     return 'ServerServices';
   }
   return 'ssb';
