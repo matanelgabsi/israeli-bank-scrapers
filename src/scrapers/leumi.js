@@ -1,6 +1,12 @@
 import moment from 'moment';
 import { BaseScraperWithBrowser, LOGIN_RESULT } from './base-scraper-with-browser';
-import { dropdownSelect, fillInput, clickButton, waitUntilElementFound } from '../helpers/elements-interactions';
+import {
+  dropdownSelect,
+  fillInput,
+  clickButton,
+  waitUntilElementFound,
+  pageEvalAll,
+} from '../helpers/elements-interactions';
 import { waitForNavigation } from '../helpers/navigation';
 import { SHEKEL_CURRENCY, NORMAL_TXN_TYPE, TRANSACTION_STATUS, SHEKEL_CURRENCY_SYMBOL } from '../constants';
 
@@ -13,8 +19,8 @@ function getTransactionsUrl() {
 
 function getPossibleLoginResults() {
   const urls = {};
-  urls[LOGIN_RESULT.SUCCESS] = /ebanking\/SO\/SPA.aspx/;
-  urls[LOGIN_RESULT.INVALID_PASSWORD] = /InternalSite\/CustomUpdate\/leumi\/LoginPage.ASP/;
+  urls[LOGIN_RESULT.SUCCESS] = [/ebanking\/SO\/SPA.aspx/];
+  urls[LOGIN_RESULT.INVALID_PASSWORD] = [/InternalSite\/CustomUpdate\/leumi\/LoginPage.ASP/];
   // urls[LOGIN_RESULT.CHANGE_PASSWORD] = ``; // TODO should wait until my password expires
   return urls;
 }
@@ -66,20 +72,18 @@ function convertTransactions(txns) {
       chargedAmount: amount,
       status: txn.status,
       description: txn.description,
-      /* memo: txn.memo, TODO add this line to export transaction memo */
+      memo: txn.memo,
     };
   });
 }
 
 async function extractCompletedTransactionsFromPage(page) {
   const txns = [];
-
-  const tdsValues = await page.$$eval('#WorkSpaceBox #ctlActivityTable tr td', (tds) => {
-    return tds.map(td =>
-      ({
-        classList: td.getAttribute('class'),
-        innerText: td.innerText,
-      }));
+  const tdsValues = await pageEvalAll(page, '#WorkSpaceBox #ctlActivityTable tr td', [], (tds) => {
+    return tds.map(td => ({
+      classList: td.getAttribute('class'),
+      innerText: td.innerText,
+    }));
   });
 
   for (const element of tdsValues) {
@@ -87,8 +91,7 @@ async function extractCompletedTransactionsFromPage(page) {
       const newTransaction = { status: TRANSACTION_STATUS.COMPLETED };
       newTransaction.date = (element.innerText || '').trim();
       txns.push(newTransaction);
-    } else if (element.classList.includes('ActivityTableColumn1LTR')
-      || element.classList.includes('ActivityTableColumn1')) {
+    } else if (element.classList.includes('ActivityTableColumn1LTR') || element.classList.includes('ActivityTableColumn1')) {
       const changedTransaction = txns.pop();
       changedTransaction.description = element.innerText;
       txns.push(changedTransaction);
@@ -110,7 +113,7 @@ async function extractCompletedTransactionsFromPage(page) {
       txns.push(changedTransaction);
     } else if (element.classList.includes('tdDepositRowAdded')) {
       const changedTransaction = txns.pop();
-      changedTransaction.memo = element.innerText;
+      changedTransaction.memo = (element.innerText || '').trim();
       txns.push(changedTransaction);
     }
   }
@@ -120,13 +123,11 @@ async function extractCompletedTransactionsFromPage(page) {
 
 async function extractPendingTransactionsFromPage(page) {
   const txns = [];
-
-  const tdsValues = await page.$$eval('#WorkSpaceBox #trTodayActivityNapaTableUpper tr td', (tds) => {
-    return tds.map(td =>
-      ({
-        classList: td.getAttribute('class'),
-        innerText: td.innerText,
-      }));
+  const tdsValues = await pageEvalAll(page, '#WorkSpaceBox #trTodayActivityNapaTableUpper tr td', [], (tds) => {
+    return tds.map(td => ({
+      classList: td.getAttribute('class'),
+      innerText: td.innerText,
+    }));
   });
 
   for (const element of tdsValues) {
@@ -223,22 +224,6 @@ async function fetchTransactions(page, startDate) {
   return [await fetchTransactionsForAccount(page, startDate)];
 }
 
-async function getAccountData(page, options) {
-  const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
-  const startDate = options.startDate || defaultStartMoment.toDate();
-  const startMoment = moment.max(defaultStartMoment, moment(startDate));
-
-  const url = getTransactionsUrl();
-  await page.goto(url);
-
-  const accounts = await fetchTransactions(page, startMoment);
-
-  return {
-    success: true,
-    accounts,
-  };
-}
-
 async function waitForPostLogin(page) {
   // TODO check for condition to provide new password
   return Promise.race([
@@ -259,7 +244,19 @@ class LeumiScraper extends BaseScraperWithBrowser {
   }
 
   async fetchData() {
-    return getAccountData(this.page, this.options);
+    const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
+    const startDate = this.options.startDate || defaultStartMoment.toDate();
+    const startMoment = moment.max(defaultStartMoment, moment(startDate));
+
+    const url = getTransactionsUrl();
+    await this.navigateTo(url);
+
+    const accounts = await fetchTransactions(this.page, startMoment);
+
+    return {
+      success: true,
+      accounts,
+    };
   }
 }
 

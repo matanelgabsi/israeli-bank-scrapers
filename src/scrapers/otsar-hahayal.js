@@ -1,7 +1,12 @@
 import moment from 'moment';
 import { BaseScraperWithBrowser, LOGIN_RESULT } from './base-scraper-with-browser';
 import { waitForNavigation } from '../helpers/navigation';
-import { fillInput, clickButton, waitUntilElementFound } from '../helpers/elements-interactions';
+import {
+  fillInput,
+  clickButton,
+  waitUntilElementFound,
+  pageEvalAll,
+} from '../helpers/elements-interactions';
 import { SHEKEL_CURRENCY, NORMAL_TXN_TYPE, SHEKEL_CURRENCY_SYMBOL } from '../constants';
 
 const BASE_URL = 'https://online.bankotsar.co.il';
@@ -70,12 +75,11 @@ function convertTransactions(txns) {
 }
 
 async function parseTransactionPage(page) {
-  const tdsValues = await page.$$eval('#dataTable077 tbody tr td', (tds) => {
-    return tds.map(td =>
-      ({
-        classList: td.getAttribute('class'),
-        innerText: td.innerText,
-      }));
+  const tdsValues = await pageEvalAll(page, '#dataTable077 tbody tr td', [], (tds) => {
+    return tds.map(td => ({
+      classList: td.getAttribute('class'),
+      innerText: td.innerText,
+    }));
   });
 
   const txns = [];
@@ -176,22 +180,6 @@ async function fetchTransactions(page, startDate) {
   return [await fetchTransactionsForAccount(page, startDate)];
 }
 
-async function getAccountData(page, options) {
-  const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
-  const startDate = options.startDate || defaultStartMoment.toDate();
-  const startMoment = moment.max(defaultStartMoment, moment(startDate));
-
-  const url = getTransactionsUrl();
-  await page.goto(url);
-
-  const accounts = await fetchTransactions(page, startMoment);
-
-  return {
-    success: true,
-    accounts,
-  };
-}
-
 async function waitForPostLogin(page) {
   // TODO check for condition to provide new password
   return Promise.race([
@@ -210,8 +198,21 @@ class OtsarHahayalScraper extends BaseScraperWithBrowser {
       possibleResults: getPossibleLoginResults(),
     };
   }
+
   async fetchData() {
-    return getAccountData(this.page, this.options);
+    const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
+    const startDate = this.options.startDate || defaultStartMoment.toDate();
+    const startMoment = moment.max(defaultStartMoment, moment(startDate));
+
+    const url = getTransactionsUrl();
+    await this.navigateTo(url);
+
+    const accounts = await fetchTransactions(this.page, startMoment);
+
+    return {
+      success: true,
+      accounts,
+    };
   }
 }
 

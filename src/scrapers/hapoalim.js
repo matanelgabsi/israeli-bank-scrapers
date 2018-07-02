@@ -2,7 +2,8 @@ import moment from 'moment';
 import uuid4 from 'uuid/v4';
 
 import { BaseScraperWithBrowser, LOGIN_RESULT } from './base-scraper-with-browser';
-import { waitForRedirect, getCurrentUrl } from '../helpers/navigation';
+import { waitForRedirect } from '../helpers/navigation';
+import waitUntil from '../helpers/waiting';
 import { NORMAL_TXN_TYPE, TRANSACTION_STATUS } from '../constants';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../helpers/fetch';
 
@@ -12,6 +13,37 @@ const DATE_FORMAT = 'YYYYMMDD';
 function convertTransactions(txns) {
   return txns.map((txn) => {
     const isOutbound = txn.eventActivityTypeCode === 2;
+
+    let memo = null;
+    if (txn.beneficiaryDetailsData) {
+      const {
+        partyHeadline,
+        partyName,
+        messageHeadline,
+        messageDetail,
+      } = txn.beneficiaryDetailsData;
+      const memoLines = [];
+      if (partyHeadline) {
+        memoLines.push(partyHeadline);
+      }
+
+      if (partyName) {
+        memoLines.push(`${partyName}.`);
+      }
+
+      if (messageHeadline) {
+        memoLines.push(messageHeadline);
+      }
+
+      if (messageDetail) {
+        memoLines.push(`${messageDetail}.`);
+      }
+
+      if (memoLines.length) {
+        memo = memoLines.join(' ');
+      }
+    }
+
     return {
       type: NORMAL_TXN_TYPE,
       identifier: txn.referenceNumber,
@@ -22,17 +54,21 @@ function convertTransactions(txns) {
       chargedAmount: isOutbound ? -txn.eventAmount : txn.eventAmount,
       description: txn.activityDescription,
       status: txn.serialNumber === 0 ? TRANSACTION_STATUS.PENDING : TRANSACTION_STATUS.COMPLETED,
+      memo,
     };
   });
 }
 
-function getSubFolder(currentUrl) {
-  if (currentUrl.includes('/portalserver/')) {
-    return 'portalserver';
-  } else if (currentUrl.includes('/ng-portals/')) {
-    return 'ServerServices';
-  }
-  return 'ssb';
+async function getRestContext(page) {
+  await waitUntil(async () => {
+    return page.evaluate(() => !!window.bnhpApp);
+  }, 'waiting for app data load');
+
+  const result = await page.evaluate(() => {
+    return window.bnhpApp.restContext;
+  });
+
+  return result.slice(1);
 }
 
 async function fetchPoalimXSRFWithinPage(page, url, pageUuid) {
@@ -49,9 +85,8 @@ async function fetchPoalimXSRFWithinPage(page, url, pageUuid) {
 }
 
 async function fetchAccountData(page, options) {
-  const currentUrl = await getCurrentUrl(page, true);
-  const subfolder = getSubFolder(currentUrl);
-  const apiSiteUrl = `${BASE_URL}/${subfolder}`;
+  const restContext = await getRestContext(page);
+  const apiSiteUrl = `${BASE_URL}/${restContext}`;
   const accountDataUrl = `${BASE_URL}/ServerServices/general/accounts`;
   const accountsInfo = await fetchGetWithinPage(page, accountDataUrl);
 
@@ -71,7 +106,7 @@ async function fetchAccountData(page, options) {
 
     const txnsResult = await fetchPoalimXSRFWithinPage(page, txnsUrl, '/current-account/transactions');
     let txns = [];
-    if (txnsResult != null) {
+    if (txnsResult) {
       txns = convertTransactions(txnsResult.transactions);
     }
 
@@ -112,7 +147,10 @@ function getPossibleLoginResults() {
   const urls = {};
   urls[LOGIN_RESULT.SUCCESS] = [`${BASE_URL}/portalserver/HomePage`, `${BASE_URL}/ng-portals-bt/rb/he/homepage`, `${BASE_URL}/ng-portals/rb/he/homepage`];
   urls[LOGIN_RESULT.INVALID_PASSWORD] = [`${BASE_URL}/AUTHENTICATE/LOGON?flow=AUTHENTICATE&state=LOGON&errorcode=1.6&callme=false`];
-  urls[LOGIN_RESULT.CHANGE_PASSWORD] = [`${BASE_URL}/MCP/START?flow=MCP&state=START&expiredDate=null`];
+  urls[LOGIN_RESULT.CHANGE_PASSWORD] = [
+    `${BASE_URL}/MCP/START?flow=MCP&state=START&expiredDate=null`,
+    /\/ABOUTTOEXPIRE\/START/i,
+  ];
   return urls;
 }
 

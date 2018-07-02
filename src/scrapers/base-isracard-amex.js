@@ -4,7 +4,15 @@ import moment from 'moment';
 
 import { BaseScraperWithBrowser, LOGIN_RESULT } from './base-scraper-with-browser';
 import { fetchGetWithinPage, fetchPostWithinPage } from '../helpers/fetch';
-import { SCRAPE_PROGRESS_TYPES, NORMAL_TXN_TYPE, INSTALLMENTS_TXN_TYPE, SHEKEL_CURRENCY_KEYWORD, SHEKEL_CURRENCY, ALT_SHEKEL_CURRENCY, TRANSACTION_STATUS } from '../constants';
+import {
+  SCRAPE_PROGRESS_TYPES,
+  NORMAL_TXN_TYPE,
+  INSTALLMENTS_TXN_TYPE,
+  SHEKEL_CURRENCY_KEYWORD,
+  SHEKEL_CURRENCY,
+  ALT_SHEKEL_CURRENCY,
+  TRANSACTION_STATUS,
+} from '../constants';
 import getAllMonthMoments from '../helpers/dates';
 import { fixInstallments, filterOldTransactions } from '../helpers/transactions';
 
@@ -103,6 +111,7 @@ function convertTransactions(txns, processedDate) {
       originalCurrency: convertCurrency(txn.currencyId),
       chargedAmount: isOutbound ? -txn.paymentSumOutbound : -txn.paymentSum,
       description: isOutbound ? txn.fullSupplierNameOutbound : txn.fullSupplierNameHeb,
+      memo: txn.moreInfo,
       installments: getInstallmentsInfo(txn),
       status: TRANSACTION_STATUS.COMPLETED,
     };
@@ -191,7 +200,7 @@ class IsracardAmexBaseScraper extends BaseScraperWithBrowser {
   }
 
   async login(credentials) {
-    await this.page.goto(`${this.options.baseUrl}/personalarea/Login`);
+    await this.navigateTo(`${this.options.baseUrl}/personalarea/Login`);
 
     this.emitProgress(SCRAPE_PROGRESS_TYPES.LOGGING_IN);
 

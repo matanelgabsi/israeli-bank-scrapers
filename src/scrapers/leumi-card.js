@@ -4,7 +4,13 @@ import moment from 'moment';
 import { BaseScraperWithBrowser, LOGIN_RESULT } from './base-scraper-with-browser';
 import { waitForNavigationAndDomLoad, waitForRedirect } from '../helpers/navigation';
 import { waitUntilElementFound } from '../helpers/elements-interactions';
-import { NORMAL_TXN_TYPE, INSTALLMENTS_TXN_TYPE, SHEKEL_CURRENCY_SYMBOL, SHEKEL_CURRENCY, TRANSACTION_STATUS } from '../constants';
+import {
+  NORMAL_TXN_TYPE,
+  INSTALLMENTS_TXN_TYPE,
+  SHEKEL_CURRENCY_SYMBOL,
+  SHEKEL_CURRENCY,
+  TRANSACTION_STATUS,
+} from '../constants';
 import getAllMonthMoments from '../helpers/dates';
 import { fixInstallments, sortTransactionsByDate, filterOldTransactions } from '../helpers/transactions';
 
@@ -17,6 +23,7 @@ const INSTALLMENTS_TYPE_NAME = 'תשלומים';
 const MONTHLY_CHARGE_TYPE_NAME = 'חיוב חודשי';
 const ONE_MONTH_POSTPONED_TYPE_NAME = 'דחוי חודש';
 const TWO_MONTHS_POSTPONED_TYPE_NAME = 'דחוי חודשיים';
+const MONTHLY_CHARGE_PLUS_INTEREST_TYPE_NAME = 'חודשי + ריבית';
 
 function redirectOrDialog(page) {
   return Promise.race([
@@ -53,6 +60,7 @@ function getTransactionType(txnTypeStr) {
     case ONE_MONTH_POSTPONED_TYPE_NAME:
     case TWO_MONTHS_POSTPONED_TYPE_NAME:
     case INTERNET_SHOPPING_TYPE_NAME:
+    case MONTHLY_CHARGE_PLUS_INTEREST_TYPE_NAME:
       return NORMAL_TXN_TYPE;
     case INSTALLMENTS_TYPE_NAME:
       return INSTALLMENTS_TXN_TYPE;
@@ -107,6 +115,7 @@ function convertTransactions(rawTxns) {
       originalCurrency: originalAmountData.currency,
       chargedAmount: -chargedAmountData.amount,
       description: txn.description.trim(),
+      memo: txn.comments,
       installments: getInstallmentsInfo(txn.comments),
       status: TRANSACTION_STATUS.COMPLETED,
     };
@@ -227,11 +236,15 @@ async function getCurrentTransactions(page) {
   return result;
 }
 
-async function fetchTransactionsForMonth(browser, monthMoment) {
+async function fetchTransactionsForMonth(browser, navigateToFunc, monthMoment) {
   const page = await browser.newPage();
 
   const url = getTransactionsUrl(monthMoment);
-  await page.goto(url);
+  await navigateToFunc(url, page);
+
+  if (page.url() !== url) {
+    throw new Error(`Error while trying to navigate to url ${url}`);
+  }
 
   const txns = await getCurrentTransactions(page);
   await page.close();
@@ -260,7 +273,7 @@ function prepareTransactions(txns, startMoment, combineInstallments) {
   return clonedTxns;
 }
 
-async function fetchTransactions(browser, options) {
+async function fetchTransactions(browser, options, navigateToFunc) {
   const defaultStartMoment = moment().subtract(1, 'years');
   const startDate = options.startDate || defaultStartMoment.toDate();
   const startMoment = moment.max(defaultStartMoment, moment(startDate));
@@ -268,11 +281,11 @@ async function fetchTransactions(browser, options) {
 
   const allTasks = [];
   for (let i = 0; i < allMonths.length; i += 1) {
-    const task = fetchTransactionsForMonth(browser, allMonths[i]);
+    const task = fetchTransactionsForMonth(browser, navigateToFunc, allMonths[i]);
     allTasks.push(task);
   }
 
-  const task = fetchTransactionsForMonth(browser);
+  const task = fetchTransactionsForMonth(browser, navigateToFunc);
   allTasks.push(task);
 
   const allTasksResults = await Promise.all(allTasks);
@@ -287,21 +300,6 @@ async function fetchTransactions(browser, options) {
   });
 
   return allResults;
-}
-
-async function getAccountData(browser, options) {
-  const results = await fetchTransactions(browser, options);
-  const accounts = Object.keys(results).map((accountNumber) => {
-    return {
-      accountNumber,
-      txns: results[accountNumber],
-    };
-  });
-
-  return {
-    success: true,
-    accounts,
-  };
 }
 
 function getPossibleLoginResults() {
@@ -332,7 +330,18 @@ class LeumiCardScraper extends BaseScraperWithBrowser {
   }
 
   async fetchData() {
-    return getAccountData(this.browser, this.options);
+    const results = await fetchTransactions(this.browser, this.options, this.navigateTo);
+    const accounts = Object.keys(results).map((accountNumber) => {
+      return {
+        accountNumber,
+        txns: results[accountNumber],
+      };
+    });
+
+    return {
+      success: true,
+      accounts,
+    };
   }
 }
 
