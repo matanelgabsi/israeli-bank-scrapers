@@ -8,7 +8,12 @@ import {
   pageEvalAll,
 } from '../helpers/elements-interactions';
 import { waitForNavigation } from '../helpers/navigation';
-import { SHEKEL_CURRENCY, NORMAL_TXN_TYPE, TRANSACTION_STATUS, SHEKEL_CURRENCY_SYMBOL } from '../constants';
+import {
+  SHEKEL_CURRENCY,
+  NORMAL_TXN_TYPE,
+  TRANSACTION_STATUS,
+  SHEKEL_CURRENCY_SYMBOL,
+} from '../constants';
 
 const BASE_URL = 'https://hb2.bankleumi.co.il/';
 const DATE_FORMAT = 'DD/MM/YY';
@@ -188,7 +193,10 @@ async function fetchTransactionsForAccount(page, startDate) {
     };
   }
 
-  await clickButton(page, 'a#lnkCtlExpandAll');
+  const expandButton = await page.$('#a#lnkCtlExpandAll');
+  if (expandButton != null) {
+    await clickButton(page, 'a#lnkCtlExpandAll');
+  }
 
   const pendingTxns = await extractPendingTransactionsFromPage(page);
   const completedTxns = await extractCompletedTransactionsFromPage(page);
