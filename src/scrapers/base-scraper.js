@@ -5,20 +5,21 @@ import { NAVIGATION_ERRORS } from '../helpers/navigation';
 
 const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
 
-function createErrorResult(errorType, errorMessage) {
+function createErrorResult(errorType, errorMessage, debugStack) {
   return {
     success: false,
     errorType,
     errorMessage,
+    debugStack,
   };
 }
 
-function createTimeoutError(errorMessage) {
-  return createErrorResult(NAVIGATION_ERRORS.TIMEOUT, errorMessage);
+function createTimeoutError(errorMessage, stack) {
+  return createErrorResult(NAVIGATION_ERRORS.TIMEOUT, errorMessage, stack);
 }
 
-function createGenericNavigationError(errorMessage) {
-  return createErrorResult(NAVIGATION_ERRORS.GENERIC, errorMessage);
+function createGenericNavigationError(errorMessage, stack) {
+  return createErrorResult(NAVIGATION_ERRORS.GENERIC, errorMessage, stack);
 }
 
 class BaseScraper {
@@ -40,8 +41,8 @@ class BaseScraper {
       loginResult = await this.login(credentials);
     } catch (e) {
       loginResult = e.timeout ?
-        createTimeoutError(e.message) :
-        createGenericNavigationError(e.message);
+        createTimeoutError(e.message, e.stack) :
+        createGenericNavigationError(e.message, e.stack);
     }
 
     let scrapeResult;
@@ -51,8 +52,8 @@ class BaseScraper {
       } catch (e) {
         scrapeResult =
           e.timeout ?
-            createTimeoutError(e.message) :
-            createGenericNavigationError(e.message);
+            createTimeoutError(e.message, e.stack) :
+            createGenericNavigationError(e.message, e.stack);
       }
     } else {
       scrapeResult = loginResult;
