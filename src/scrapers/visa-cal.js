@@ -21,6 +21,7 @@ const DATE_FORMAT = 'DD/MM/YYYY';
 
 const PASSWORD_EXPIRED_MSG = 'תוקף הסיסמא פג';
 const INVALID_CREDENTIALS = 'שם משתמש או הסיסמא שהוזנו שגויים';
+const NO_DATA_FOUND_MSG = 'לא נמצאו חיובים לטווח תאריכים זה';
 
 const NORMAL_TYPE_CODE = '5';
 const REFUND_TYPE_CODE = '6';
@@ -189,23 +190,29 @@ async function getTransactionsForAllAccounts(authHeader, startMoment, options) {
     for (let i = 0; i < banksResponse.BankAccounts.length; i += 1) {
       const bank = banksResponse.BankAccounts[i];
       const bankDebits = await getBankDebits(authHeader, bank.AccountID);
-      if (_.get(bankDebits, 'Response.Status.Succeeded')) {
-        for (let j = 0; j < bank.Cards.length; j += 1) {
-          const rawTxns = await getTxnsOfCard(authHeader, bank.Cards[j], bankDebits.Debits);
-          if (rawTxns) {
-            let txns = convertTransactions(rawTxns);
-            txns = prepareTransactions(txns, startMoment, options.combineInstallments);
-            const result = {
-              accountNumber: bank.Cards[j].LastFourDigits,
-              txns,
-            };
-            accounts.push(result);
+      // Check that the bank has an active card to scrape
+      if (bank.Cards.some(card => card.IsEffectiveInd)) {
+        if (_.get(bankDebits, 'Response.Status.Succeeded')) {
+          for (let j = 0; j < bank.Cards.length; j += 1) {
+            const rawTxns = await getTxnsOfCard(authHeader, bank.Cards[j], bankDebits.Debits);
+            if (rawTxns) {
+              let txns = convertTransactions(rawTxns);
+              txns = prepareTransactions(txns, startMoment, options.combineInstallments);
+              const result = {
+                accountNumber: bank.Cards[j].LastFourDigits,
+                txns,
+              };
+              accounts.push(result);
+            }
+          }
+        } else {
+          const { Description, Message } = bankDebits.Response.Status;
+
+          if (Message !== NO_DATA_FOUND_MSG) {
+            const message = `${Description}. ${Message}`;
+            throw new Error(message);
           }
         }
-      } else {
-        const { Description, Message } = bankDebits.Response.Status;
-        const message = `${Description}. ${Message}`;
-        throw new Error(message);
       }
     }
     return {
