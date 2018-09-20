@@ -238,6 +238,7 @@ async function getCurrentTransactions(page) {
 
 async function fetchTransactionsForMonth(browser, navigateToFunc, monthMoment) {
   const page = await browser.newPage();
+  page.setDefaultNavigationTimeout(300000);
 
   const url = getTransactionsUrl(monthMoment);
   await navigateToFunc(url, page);
