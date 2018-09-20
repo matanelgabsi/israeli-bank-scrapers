@@ -76,6 +76,7 @@ class BaseScraperWithBrowser extends BaseScraper {
     } else {
       this.page = await this.browser.newPage();
     }
+    this.page.setDefaultNavigationTimeout(300000);
     await this.page.setViewport({
       width: VIEWPORT_WIDTH,
       height: VIEWPORT_HEIGHT,
