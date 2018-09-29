@@ -177,7 +177,6 @@ async function fetchTransactionsForAccount(page, startDate) {
   await clickButton(page, 'input#btnDisplayDates');
   await waitForNavigation(page);
   await waitUntilElementFound(page, 'table#WorkSpaceBox table#ctlActivityTable, #NOINFORMATIONREGIONSERVERSIDEERROR');
-  await clickButton(page, 'a#lnkCtlExpandAllInPage');
 
   const selectedSnifAccount = await page.$eval('#ddlAccounts_m_ddl option[selected="selected"]', (option) => {
     return option.innerText;
@@ -194,9 +193,9 @@ async function fetchTransactionsForAccount(page, startDate) {
     };
   }
 
-  const expandButton = await page.$('#a#lnkCtlExpandAll');
+  const expandButton = await page.$('#a#lnkCtlExpandAllInPage');
   if (expandButton != null) {
-    await clickButton(page, 'a#lnkCtlExpandAll');
+    await clickButton(page, 'a#lnkCtlExpandAllInPage');
   }
 
   const pendingTxns = await extractPendingTransactionsFromPage(page);
