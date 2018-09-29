@@ -166,9 +166,30 @@ async function extractPendingTransactionsFromPage(page) {
   return txns;
 }
 
+async function getSummary(page) {
+  const balanceSpan = await page.$('#lblBalancesVal');
+  const balanceTextHandle = await balanceSpan.getProperty('innerText');
+  const balanceValue = getAmountData(await balanceTextHandle.jsonValue(), true);
+
+  // This is a guess, as i can't test it
+  const creditTd = await page.$('#lblCreditLineTd');
+  const creditHandle = await creditTd.getProperty('innerText');
+  const creditValue = getAmountData(await creditHandle.jsonValue(), true);
+
+  const summary = {
+    balance: Number.isNaN(balanceValue.amount) ? 0 : balanceValue.amount,
+    creditLimit: Number.isNaN(creditValue.amount) ? 0 : creditValue.amount,
+    creditUtilization: 0, // Can't find this value
+    balanceCurrency: balanceValue.currency,
+  };
+  return summary;
+}
+
 async function fetchTransactionsForAccount(page, startDate) {
+  let txns = [];
   await dropdownSelect(page, 'select#ddlTransactionPeriod', '004');
   await waitUntilElementFound(page, 'select#ddlTransactionPeriod');
+  const summary = await getSummary(page); // This should be done before changing dates in case there are no transaction in range
   await fillInput(
     page,
     'input#dtFromDate_textBox',
@@ -185,40 +206,21 @@ async function fetchTransactionsForAccount(page, startDate) {
   const snifAccount = selectedSnifAccount.replace('/', '_').replace(' ', '');
   const accountNumber = `10-${snifAccount}`;
 
+
   const noTransactionElm = await page.$('#NOINFORMATIONREGIONSERVERSIDEERROR');
-  if (noTransactionElm != null) {
-    return {
-      accountNumber,
-      txns: [],
-    };
+  if (noTransactionElm == null) {
+    const expandButton = await page.$('#a#lnkCtlExpandAllInPage');
+    if (expandButton != null) {
+      await clickButton(page, 'a#lnkCtlExpandAllInPage');
+    }
+
+    const pendingTxns = await extractPendingTransactionsFromPage(page);
+    const completedTxns = await extractCompletedTransactionsFromPage(page);
+    txns = [
+      ...pendingTxns,
+      ...completedTxns,
+    ];
   }
-
-  const expandButton = await page.$('#a#lnkCtlExpandAllInPage');
-  if (expandButton != null) {
-    await clickButton(page, 'a#lnkCtlExpandAllInPage');
-  }
-
-  const pendingTxns = await extractPendingTransactionsFromPage(page);
-  const completedTxns = await extractCompletedTransactionsFromPage(page);
-  const txns = [
-    ...pendingTxns,
-    ...completedTxns,
-  ];
-  const balanceSpan = await page.$('#lblBalancesVal');
-  const balanceTextHandle = await balanceSpan.getProperty('innerText');
-  const balanceValue = getAmountData(await balanceTextHandle.jsonValue(), true);
-
-  // This is a guess, as i can't test it
-  const creditTd = await page.$('#lblCreditLineTd');
-  const creditHandle = await creditTd.getProperty('innerText');
-  const creditValue = getAmountData(await creditHandle.jsonValue(), true);
-
-  const summary = {
-    balance: Number.isNaN(balanceValue.amount) ? 0 : balanceValue.amount,
-    creditLimit: Number.isNaN(creditValue.amount) ? 0 : creditValue.amount,
-    creditUtilization: 0, // Can't find this value
-    balanceCurrency: balanceValue.currency,
-  };
 
   return {
     accountNumber,
