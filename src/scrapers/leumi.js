@@ -15,7 +15,7 @@ import {
   SHEKEL_CURRENCY_SYMBOL,
 } from '../constants';
 
-const BASE_URL = 'https://hb2.bankleumi.co.il/';
+const BASE_URL = 'https://hb2.bankleumi.co.il';
 const DATE_FORMAT = 'DD/MM/YY';
 
 function getTransactionsUrl() {
