@@ -331,7 +331,7 @@ class LeumiCardScraper extends BaseScraperWithBrowser {
       fields: createLoginFields(inputGroupName, credentials),
       checkReadiness: async () => {
         await waitUntilElementFound(this.page, `#${inputGroupName}_btnLogin`);
-        if (await elementPresentOnPage(page, "#closePopup")) {
+        if (await elementPresentOnPage(this.page, "#closePopup")) {
             await clickButton(this.page, "#closePopup");
         }
       },
