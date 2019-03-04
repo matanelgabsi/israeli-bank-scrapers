@@ -3,7 +3,7 @@ import moment from 'moment';
 
 import { BaseScraperWithBrowser, LOGIN_RESULT } from './base-scraper-with-browser';
 import { waitForNavigationAndDomLoad, waitForRedirect } from '../helpers/navigation';
-import { waitUntilElementFound, elementPresentOnPage } from '../helpers/elements-interactions';
+import { waitUntilElementFound, elementPresentOnPage, clickButton } from '../helpers/elements-interactions';
 import {
   NORMAL_TXN_TYPE,
   INSTALLMENTS_TXN_TYPE,
