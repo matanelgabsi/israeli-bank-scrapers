@@ -329,6 +329,7 @@ class LeumiCardScraper extends BaseScraperWithBrowser {
     return {
       loginUrl: `${BASE_URL}/Anonymous/Login/CardHoldersLogin.aspx`,
       fields: createLoginFields(inputGroupName, credentials),
+      submitButtonSelector: `#${inputGroupName}_btnLogin`,
       checkReadiness: async () => {
         await waitUntilElementFound(this.page, `#${inputGroupName}_btnLogin`);
         if (await elementPresentOnPage(this.page, "#closePopup")) {
