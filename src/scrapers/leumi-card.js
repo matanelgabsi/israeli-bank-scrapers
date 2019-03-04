@@ -3,7 +3,7 @@ import moment from 'moment';
 
 import { BaseScraperWithBrowser, LOGIN_RESULT } from './base-scraper-with-browser';
 import { waitForNavigationAndDomLoad, waitForRedirect } from '../helpers/navigation';
-import { waitUntilElementFound } from '../helpers/elements-interactions';
+import { waitUntilElementFound, elementPresentOnPage } from '../helpers/elements-interactions';
 import {
   NORMAL_TXN_TYPE,
   INSTALLMENTS_TXN_TYPE,
@@ -329,7 +329,12 @@ class LeumiCardScraper extends BaseScraperWithBrowser {
     return {
       loginUrl: `${BASE_URL}/Anonymous/Login/CardHoldersLogin.aspx`,
       fields: createLoginFields(inputGroupName, credentials),
-      submitButtonSelector: `#${inputGroupName}_btnLogin`,
+      checkReadiness: async () => {
+        await waitUntilElementFound(this.page, `#${inputGroupName}_btnLogin`);
+        if (await elementPresentOnPage(page, "#closePopup")) {
+            await clickButton(this.page, "#closePopup");
+        }
+      },
       postAction: async () => redirectOrDialog(this.page),
       possibleResults: getPossibleLoginResults(),
     };
