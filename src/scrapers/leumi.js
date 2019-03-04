@@ -1,22 +1,27 @@
-import moment from 'moment';
-import { BaseScraperWithBrowser, LOGIN_RESULT } from './base-scraper-with-browser';
+import moment from "moment";
+import {
+  BaseScraperWithBrowser,
+  LOGIN_RESULT
+} from "./base-scraper-with-browser";
 import {
   dropdownSelect,
+  dropdownElements,
   fillInput,
   clickButton,
   waitUntilElementFound,
   pageEvalAll,
-} from '../helpers/elements-interactions';
-import { waitForNavigation } from '../helpers/navigation';
+  elementPresentOnPage
+} from "../helpers/elements-interactions";
+import { waitForNavigation } from "../helpers/navigation";
 import {
   SHEKEL_CURRENCY,
   NORMAL_TXN_TYPE,
   TRANSACTION_STATUS,
-  SHEKEL_CURRENCY_SYMBOL,
-} from '../constants';
+  SHEKEL_CURRENCY_SYMBOL
+} from "../constants";
 
-const BASE_URL = 'https://hb2.bankleumi.co.il';
-const DATE_FORMAT = 'DD/MM/YY';
+const BASE_URL = "https://hb2.bankleumi.co.il";
+const DATE_FORMAT = "DD/MM/YY";
 
 function getTransactionsUrl() {
   return `${BASE_URL}/ebanking/Accounts/ExtendedActivity.aspx?WidgetPar=1#/`;
@@ -25,48 +30,51 @@ function getTransactionsUrl() {
 function getPossibleLoginResults() {
   const urls = {};
   urls[LOGIN_RESULT.SUCCESS] = [/ebanking\/SO\/SPA.aspx/];
-  urls[LOGIN_RESULT.INVALID_PASSWORD] = [/InternalSite\/CustomUpdate\/leumi\/LoginPage.ASP/];
+  urls[LOGIN_RESULT.INVALID_PASSWORD] = [
+    /InternalSite\/CustomUpdate\/leumi\/LoginPage.ASP/
+  ];
   // urls[LOGIN_RESULT.CHANGE_PASSWORD] = ``; // TODO should wait until my password expires
   return urls;
 }
 
 function createLoginFields(credentials) {
   return [
-    { selector: '#wtr_uid', value: credentials.username },
-    { selector: '#wtr_password', value: credentials.password },
+    { selector: "#wtr_uid", value: credentials.username },
+    { selector: "#wtr_password", value: credentials.password }
   ];
 }
 
 function getAmountData(amountStr, hasCurrency = false) {
-  const amountStrCopy = amountStr.replace(',', '');
+  const amountStrCopy = amountStr.replace(",", "");
   let currency = null;
   let amount = null;
   if (!hasCurrency) {
-    const amountStrCopy = amountStr.replace(',', '');
+    const amountStrCopy = amountStr.replace(",", "");
     amount = parseFloat(amountStrCopy);
     currency = SHEKEL_CURRENCY;
   } else if (amountStrCopy.includes(SHEKEL_CURRENCY_SYMBOL)) {
-    amount = parseFloat(amountStrCopy.replace(SHEKEL_CURRENCY_SYMBOL, ''));
+    amount = parseFloat(amountStrCopy.replace(SHEKEL_CURRENCY_SYMBOL, ""));
     currency = SHEKEL_CURRENCY;
   } else {
-    const parts = amountStrCopy.split(' ');
+    const parts = amountStrCopy.split(" ");
     amount = parseFloat(parts[0]);
     [, currency] = parts;
   }
 
   return {
     amount,
-    currency,
+    currency
   };
 }
 
 function convertTransactions(txns) {
-  return txns.map((txn) => {
+  return txns.map(txn => {
     const txnDate = moment(txn.date, DATE_FORMAT).toISOString();
 
     const credit = getAmountData(txn.credit).amount;
     const debit = getAmountData(txn.debit).amount;
-    const amount = (Number.isNaN(credit) ? 0 : credit) - (Number.isNaN(debit) ? 0 : debit);
+    const amount =
+      (Number.isNaN(credit) ? 0 : credit) - (Number.isNaN(debit) ? 0 : debit);
     return {
       type: NORMAL_TXN_TYPE,
       identifier: txn.reference ? parseInt(txn.reference, 10) : null,
@@ -77,48 +85,56 @@ function convertTransactions(txns) {
       chargedAmount: amount,
       status: txn.status,
       description: txn.description,
-      memo: txn.memo,
+      memo: txn.memo
     };
   });
 }
 
 async function extractCompletedTransactionsFromPage(page) {
   const txns = [];
-  const tdsValues = await pageEvalAll(page, '#WorkSpaceBox #ctlActivityTable tr td', [], (tds) => {
-    return tds.map(td => ({
-      classList: td.getAttribute('class'),
-      innerText: td.innerText,
-    }));
-  });
+  const tdsValues = await pageEvalAll(
+    page,
+    "#WorkSpaceBox #ctlActivityTable tr td",
+    [],
+    tds => {
+      return tds.map(td => ({
+        classList: td.getAttribute("class"),
+        innerText: td.innerText
+      }));
+    }
+  );
 
   for (const element of tdsValues) {
-    if (element.classList.includes('ExtendedActivityColumnDate')) {
+    if (element.classList.includes("ExtendedActivityColumnDate")) {
       const newTransaction = { status: TRANSACTION_STATUS.COMPLETED };
-      newTransaction.date = (element.innerText || '').trim();
+      newTransaction.date = (element.innerText || "").trim();
       txns.push(newTransaction);
-    } else if (element.classList.includes('ActivityTableColumn1LTR') || element.classList.includes('ActivityTableColumn1')) {
+    } else if (
+      element.classList.includes("ActivityTableColumn1LTR") ||
+      element.classList.includes("ActivityTableColumn1")
+    ) {
       const changedTransaction = txns.pop();
       changedTransaction.description = element.innerText;
       txns.push(changedTransaction);
-    } else if (element.classList.includes('ReferenceNumberUniqeClass')) {
+    } else if (element.classList.includes("ReferenceNumberUniqeClass")) {
       const changedTransaction = txns.pop();
       changedTransaction.reference = element.innerText;
       txns.push(changedTransaction);
-    } else if (element.classList.includes('AmountDebitUniqeClass')) {
+    } else if (element.classList.includes("AmountDebitUniqeClass")) {
       const changedTransaction = txns.pop();
       changedTransaction.debit = element.innerText;
       txns.push(changedTransaction);
-    } else if (element.classList.includes('AmountCreditUniqeClass')) {
+    } else if (element.classList.includes("AmountCreditUniqeClass")) {
       const changedTransaction = txns.pop();
       changedTransaction.credit = element.innerText;
       txns.push(changedTransaction);
-    } else if (element.classList.includes('number_column')) {
+    } else if (element.classList.includes("number_column")) {
       const changedTransaction = txns.pop();
       changedTransaction.balance = element.innerText;
       txns.push(changedTransaction);
-    } else if (element.classList.includes('tdDepositRowAdded')) {
+    } else if (element.classList.includes("tdDepositRowAdded")) {
       const changedTransaction = txns.pop();
-      changedTransaction.memo = (element.innerText || '').trim();
+      changedTransaction.memo = (element.innerText || "").trim();
       txns.push(changedTransaction);
     }
   }
@@ -128,35 +144,40 @@ async function extractCompletedTransactionsFromPage(page) {
 
 async function extractPendingTransactionsFromPage(page) {
   const txns = [];
-  const tdsValues = await pageEvalAll(page, '#WorkSpaceBox #trTodayActivityNapaTableUpper tr td', [], (tds) => {
-    return tds.map(td => ({
-      classList: td.getAttribute('class'),
-      innerText: td.innerText,
-    }));
-  });
+  const tdsValues = await pageEvalAll(
+    page,
+    "#WorkSpaceBox #trTodayActivityNapaTableUpper tr td",
+    [],
+    tds => {
+      return tds.map(td => ({
+        classList: td.getAttribute("class"),
+        innerText: td.innerText
+      }));
+    }
+  );
 
   for (const element of tdsValues) {
-    if (element.classList.includes('Colume1Width')) {
+    if (element.classList.includes("Colume1Width")) {
       const newTransaction = { status: TRANSACTION_STATUS.PENDING };
-      newTransaction.date = (element.innerText || '').trim();
+      newTransaction.date = (element.innerText || "").trim();
       txns.push(newTransaction);
-    } else if (element.classList.includes('Colume2Width')) {
+    } else if (element.classList.includes("Colume2Width")) {
       const changedTransaction = txns.pop();
       changedTransaction.description = element.innerText;
       txns.push(changedTransaction);
-    } else if (element.classList.includes('Colume3Width')) {
+    } else if (element.classList.includes("Colume3Width")) {
       const changedTransaction = txns.pop();
       changedTransaction.reference = element.innerText;
       txns.push(changedTransaction);
-    } else if (element.classList.includes('Colume4Width')) {
+    } else if (element.classList.includes("Colume4Width")) {
       const changedTransaction = txns.pop();
       changedTransaction.debit = element.innerText;
       txns.push(changedTransaction);
-    } else if (element.classList.includes('Colume5Width')) {
+    } else if (element.classList.includes("Colume5Width")) {
       const changedTransaction = txns.pop();
       changedTransaction.credit = element.innerText;
       txns.push(changedTransaction);
-    } else if (element.classList.includes('Colume6Width')) {
+    } else if (element.classList.includes("Colume6Width")) {
       const changedTransaction = txns.pop();
       changedTransaction.balance = element.innerText;
       txns.push(changedTransaction);
@@ -167,78 +188,100 @@ async function extractPendingTransactionsFromPage(page) {
 }
 
 async function getSummary(page) {
-  const balanceSpan = await page.$('#lblBalancesVal');
-  const balanceTextHandle = await balanceSpan.getProperty('innerText');
+  const balanceSpan = await page.$("#lblBalancesVal");
+  const balanceTextHandle = await balanceSpan.getProperty("innerText");
   const balanceValue = getAmountData(await balanceTextHandle.jsonValue(), true);
 
   // This is a guess, as i can't test it
-  const creditTd = await page.$('#lblCreditLineTd');
-  const creditHandle = await creditTd.getProperty('innerText');
+  const creditTd = await page.$("#lblCreditLineTd");
+  const creditHandle = await creditTd.getProperty("innerText");
   const creditValue = getAmountData(await creditHandle.jsonValue(), true);
 
   const summary = {
     balance: Number.isNaN(balanceValue.amount) ? 0 : balanceValue.amount,
     creditLimit: Number.isNaN(creditValue.amount) ? 0 : creditValue.amount,
     creditUtilization: 0, // Can't find this value
-    balanceCurrency: balanceValue.currency,
+    balanceCurrency: balanceValue.currency
   };
   return summary;
 }
 
 async function fetchTransactionsForAccount(page, startDate) {
   let txns = [];
-  await dropdownSelect(page, 'select#ddlTransactionPeriod', '004');
-  await waitUntilElementFound(page, 'select#ddlTransactionPeriod');
+  await dropdownSelect(page, "select#ddlAccounts_m_ddl", accountId);
+  await dropdownSelect(page, "select#ddlTransactionPeriod", "004");
+  await waitUntilElementFound(page, "select#ddlTransactionPeriod");
   const summary = await getSummary(page); // This should be done before changing dates in case there are no transaction in range
   await fillInput(
     page,
-    'input#dtFromDate_textBox',
-    startDate.format(DATE_FORMAT),
+    "input#dtFromDate_textBox",
+    startDate.format(DATE_FORMAT)
   );
-  await clickButton(page, 'input#btnDisplayDates');
+  await clickButton(page, "input#btnDisplayDates");
   await waitForNavigation(page);
-  await waitUntilElementFound(page, 'table#WorkSpaceBox table#ctlActivityTable, #NOINFORMATIONREGIONSERVERSIDEERROR');
+  await waitUntilElementFound(
+    page,
+    "table#WorkSpaceBox table#ctlActivityTable, #NOINFORMATIONREGIONSERVERSIDEERROR"
+  );
 
-  const selectedSnifAccount = await page.$eval('#ddlAccounts_m_ddl option[selected="selected"]', (option) => {
-    return option.innerText;
-  });
+  const hasExpandAllButton = await elementPresentOnPage(
+    page,
+    "a#lnkCtlExpandAllInPage"
+  );
 
-  const snifAccount = selectedSnifAccount.replace('/', '_').replace(' ', '');
+  if (hasExpandAllButton) {
+    await clickButton(page, "a#lnkCtlExpandAllInPage");
+  }
+
+  const selectedSnifAccount = await page.$eval(
+    '#ddlAccounts_m_ddl option[selected="selected"]',
+    option => {
+      return option.innerText;
+    }
+  );
+
+  const snifAccount = selectedSnifAccount.replace("/", "_").replace(" ", "");
   const accountNumber = `10-${snifAccount}`;
 
-
-  const noTransactionElm = await page.$('#NOINFORMATIONREGIONSERVERSIDEERROR');
+  const noTransactionElm = await page.$("#NOINFORMATIONREGIONSERVERSIDEERROR");
   if (noTransactionElm == null) {
-    const expandButton = await page.$('#a#lnkCtlExpandAllInPage');
+    const expandButton = await page.$("#a#lnkCtlExpandAllInPage");
     if (expandButton != null) {
-      await clickButton(page, 'a#lnkCtlExpandAllInPage');
+      await clickButton(page, "a#lnkCtlExpandAllInPage");
     }
 
     const pendingTxns = await extractPendingTransactionsFromPage(page);
     const completedTxns = await extractCompletedTransactionsFromPage(page);
-    txns = [
-      ...pendingTxns,
-      ...completedTxns,
-    ];
+    txns = [...pendingTxns, ...completedTxns];
   }
 
   return {
     accountNumber,
     summary,
-    txns: convertTransactions(txns),
+    txns: convertTransactions(txns)
   };
 }
 
 async function fetchTransactions(page, startDate) {
-  // TODO need to extend to support multiple accounts and foreign accounts
-  return [await fetchTransactionsForAccount(page, startDate)];
+  const res = [];
+  // Loop through all available accounts and collect transactions from all
+  const accounts = await dropdownElements(page, "select#ddlAccounts_m_ddl");
+  for (const account of accounts) {
+    // Skip "All accounts" option
+    if (account.value !== "-1") {
+      res.push(
+        await fetchTransactionsForAccount(page, startDate, account.value)
+      );
+    }
+  }
+  return res;
 }
 
 async function waitForPostLogin(page) {
   // TODO check for condition to provide new password
   return Promise.race([
-    waitUntilElementFound(page, 'div.leumi-container', true),
-    waitUntilElementFound(page, '#loginErrMsg', true),
+    waitUntilElementFound(page, "div.leumi-container", true),
+    waitUntilElementFound(page, "#loginErrMsg", true)
   ]);
 }
 
@@ -247,14 +290,16 @@ class LeumiScraper extends BaseScraperWithBrowser {
     return {
       loginUrl: `${BASE_URL}`,
       fields: createLoginFields(credentials),
-      submitButtonSelector: '#enter',
+      submitButtonSelector: "#enter",
       postAction: async () => waitForPostLogin(this.page),
-      possibleResults: getPossibleLoginResults(),
+      possibleResults: getPossibleLoginResults()
     };
   }
 
   async fetchData() {
-    const defaultStartMoment = moment().subtract(1, 'years').add(1, 'day');
+    const defaultStartMoment = moment()
+      .subtract(1, "years")
+      .add(1, "day");
     const startDate = this.options.startDate || defaultStartMoment.toDate();
     const startMoment = moment.max(defaultStartMoment, moment(startDate));
 
@@ -265,7 +310,7 @@ class LeumiScraper extends BaseScraperWithBrowser {
 
     return {
       success: true,
-      accounts,
+      accounts
     };
   }
 }

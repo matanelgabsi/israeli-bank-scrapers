@@ -29,8 +29,26 @@ async function pageEvalAll(page, selector, defaultResult, callback) {
   return result;
 }
 
+async function elementPresentOnPage(page, selector) {
+  return await page.$(selector) !== null;
+}
+
 async function dropdownSelect(page, selectSelector, value) {
   await page.select(selectSelector, value);
+}
+
+async function dropdownElements(page, selector) {
+  const options = await page.evaluate((optionSelector) => {
+    return Array.from(document.querySelectorAll(optionSelector))
+      .filter(o => o.value)
+      .map((o) => {
+        return {
+          name: o.text,
+          value: o.value,
+        };
+      });
+  }, `${selector} > option`);
+  return options;
 }
 
 export {
@@ -38,5 +56,7 @@ export {
   fillInput,
   clickButton,
   dropdownSelect,
+  dropdownElements,
   pageEvalAll,
+  elementPresentOnPage,
 };
