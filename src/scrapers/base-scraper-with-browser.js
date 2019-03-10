@@ -19,7 +19,7 @@ function getKeyByValue(object, value) {
         return item.test(value);
       }
 
-      return value === item;
+      return value.toLowerCase() === item.toLowerCase();
     });
 
     return !!result;
@@ -119,6 +119,9 @@ class BaseScraperWithBrowser extends BaseScraper {
       await waitUntilElementFound(this.page, loginOptions.submitButtonSelector);
     }
 
+    if (loginOptions.preAction) {
+      await loginOptions.preAction();
+    }
     await this.fillInputs(loginOptions.fields);
     await clickButton(this.page, loginOptions.submitButtonSelector);
     this.emitProgress(SCRAPE_PROGRESS_TYPES.LOGGING_IN);
