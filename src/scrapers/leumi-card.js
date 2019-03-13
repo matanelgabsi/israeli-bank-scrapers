@@ -30,7 +30,7 @@ const CREDIT_TYPE_NAME = 'קרדיט';
 
 function redirectOrDialog(page) {
   return Promise.race([
-    waitForRedirect(page, 20000, false, [BASE_WELCOME_URL, `${BASE_WELCOME_URL}/`]),
+    waitForRedirect(page, 20000, false]),
     waitUntilElementFound(page, '#popupWrongDetails', true),
   ]);
 }
@@ -305,7 +305,7 @@ async function fetchTransactions(browser, options, navigateToFunc) {
 
 function getPossibleLoginResults() {
   const urls = {};
-  urls[LOGIN_RESULT.SUCCESS] = [`${BASE_WELCOME_URL}/homepage/personal`];
+  urls[LOGIN_RESULT.SUCCESS] = [`${BASE_WELCOME_URL}/`];
   urls[LOGIN_RESULT.CHANGE_PASSWORD] = [`${BASE_ACTIONS_URL}/Anonymous/Login/PasswordExpired.aspx`];
   urls[LOGIN_RESULT.INVALID_PASSWORD] = [`${BASE_ACTIONS_URL}/Anonymous/Login/CardHoldersLogin.aspx`];
   return urls;
