@@ -29,10 +29,14 @@ const TWO_MONTHS_POSTPONED_TYPE_NAME = 'דחוי חודשיים';
 const MONTHLY_CHARGE_PLUS_INTEREST_TYPE_NAME = 'חודשי + ריבית';
 const CREDIT_TYPE_NAME = 'קרדיט';
 
+const INVALID_DETAILS_SELECTOR = '#popupWrongDetails';
+const LOGIN_ERROR_SELECTOR = '#popupCardHoldersLoginError';
+
 function redirectOrDialog(page) {
   return Promise.race([
-    waitForRedirect(page, 20000, false),
-    waitUntilElementFound(page, '#popupWrongDetails', true),
+    waitForRedirect(page, 20000, false, [BASE_WELCOME_URL, `${BASE_WELCOME_URL}/`]),
+    waitUntilElementFound(page, INVALID_DETAILS_SELECTOR, true),
+    waitUntilElementFound(page, LOGIN_ERROR_SELECTOR, true),
   ]);
 }
 
@@ -162,6 +166,14 @@ async function getAccountNumber(page, cardIndex) {
 async function getTransactionsForSection(page, cardIndex, sectionIndex) {
   const cardSections = await getCardSections(page, cardIndex);
   const txnsRows = await cardSections[sectionIndex].$$('.jobs_regular');
+  const expandedBusinessesNamesHeaders = await cardSections[sectionIndex].$$('.openedJob .bisName');
+  let expandedBusinessesNames = await Promise.all(expandedBusinessesNamesHeaders.map(
+    header => page.evaluate(x => x.innerText, header),
+  ), expandedBusinessesNamesHeaders);
+
+  // Leumicard keeps hidden open transactions without any content, filter them out
+  expandedBusinessesNames = expandedBusinessesNames.filter(x => !!x);
+
   const txns = [];
   for (let txnIndex = 0; txnIndex < txnsRows.length; txnIndex += 1) {
     const txnColumns = await txnsRows[txnIndex].$$('td');
@@ -186,9 +198,7 @@ async function getTransactionsForSection(page, cardIndex, sectionIndex) {
       return td.innerText;
     }, txnColumns[6]);
 
-    const description = await page.evaluate((td) => {
-      return td.innerText;
-    }, txnColumns[3]);
+    const description = expandedBusinessesNames[txnIndex].replace(/\s+/g, ' ');
 
     const comments = await page.evaluate((td) => {
       return td.innerText;
@@ -305,11 +315,16 @@ async function fetchTransactions(browser, options, navigateToFunc) {
   return allResults;
 }
 
-function getPossibleLoginResults() {
+function getPossibleLoginResults(page) {
   const urls = {};
   urls[LOGIN_RESULT.SUCCESS] = [`${BASE_WELCOME_URL}/`];
   urls[LOGIN_RESULT.CHANGE_PASSWORD] = [`${BASE_ACTIONS_URL}/Anonymous/Login/PasswordExpired.aspx`];
-  urls[LOGIN_RESULT.INVALID_PASSWORD] = [`${BASE_ACTIONS_URL}/Anonymous/Login/CardHoldersLogin.aspx`];
+  urls[LOGIN_RESULT.INVALID_PASSWORD] = [async () => {
+    return elementPresentOnPage(page, INVALID_DETAILS_SELECTOR);
+  }];
+  urls[LOGIN_RESULT.UNKNOWN_ERROR] = [async () => {
+    return elementPresentOnPage(page, LOGIN_ERROR_SELECTOR);
+  }];
   return urls;
 }
 
@@ -333,7 +348,7 @@ class LeumiCardScraper extends BaseScraperWithBrowser {
         }
       },
       postAction: async () => redirectOrDialog(this.page),
-      possibleResults: getPossibleLoginResults(),
+      possibleResults: getPossibleLoginResults(this.page),
     };
   }
 

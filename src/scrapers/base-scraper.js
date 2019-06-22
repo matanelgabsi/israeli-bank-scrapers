@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events';
 
-import { SCRAPE_PROGRESS_TYPES, LOGIN_RESULT } from '../constants';
-import { NAVIGATION_ERRORS } from '../helpers/navigation';
+import { SCRAPE_PROGRESS_TYPES, LOGIN_RESULT, ERRORS } from '../constants';
 
 const SCRAPE_PROGRESS = 'SCRAPE_PROGRESS';
 
@@ -14,12 +13,12 @@ function createErrorResult(errorType, errorMessage, debugStack) {
   };
 }
 
-function createTimeoutError(errorMessage, stack) {
-  return createErrorResult(NAVIGATION_ERRORS.TIMEOUT, errorMessage, stack);
+function createTimeoutError(errorMessage) {
+  return createErrorResult(ERRORS.TIMEOUT, errorMessage);
 }
 
-function createGenericNavigationError(errorMessage, stack) {
-  return createErrorResult(NAVIGATION_ERRORS.GENERIC, errorMessage, stack);
+function createGenericError(errorMessage) {
+  return createErrorResult(ERRORS.GENERIC, errorMessage);
 }
 
 class BaseScraper {
@@ -41,8 +40,8 @@ class BaseScraper {
       loginResult = await this.login(credentials);
     } catch (e) {
       loginResult = e.timeout ?
-        createTimeoutError(e.message, e.stack) :
-        createGenericNavigationError(e.message, e.stack);
+        createTimeoutError(e.message) :
+        createGenericError(e.message);
     }
 
     let scrapeResult;
@@ -52,14 +51,18 @@ class BaseScraper {
       } catch (e) {
         scrapeResult =
           e.timeout ?
-            createTimeoutError(e.message, e.stack) :
-            createGenericNavigationError(e.message, e.stack);
+            createTimeoutError(e.message) :
+            createGenericError(e.message);
       }
     } else {
       scrapeResult = loginResult;
     }
 
-    await this.terminate();
+    try {
+      await this.terminate();
+    } catch (e) {
+      scrapeResult = createGenericError(e.message);
+    }
     this.emitProgress(SCRAPE_PROGRESS_TYPES.END_SCRAPING);
 
     return scrapeResult;
