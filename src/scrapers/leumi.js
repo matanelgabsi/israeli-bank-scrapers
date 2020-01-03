@@ -20,8 +20,9 @@ import {
   SHEKEL_CURRENCY_SYMBOL
 } from "../constants";
 
-const BASE_URL = "https://hb2.bankleumi.co.il";
-const DATE_FORMAT = "DD/MM/YY";
+const BASE_URL = 'https://hb2.bankleumi.co.il';
+const DATE_FORMAT = 'DD/MM/YY';
+const NO_TRANSACTION_IN_DATE_RANGE_TEXT = 'לא קיימות תנועות מתאימות על פי הסינון שהוגדר';
 
 function getTransactionsUrl() {
   return `${BASE_URL}/ebanking/Accounts/ExtendedActivity.aspx?WidgetPar=1#/`;
@@ -29,10 +30,8 @@ function getTransactionsUrl() {
 
 function getPossibleLoginResults() {
   const urls = {};
-  urls[LOGIN_RESULT.SUCCESS] = [/ebanking\/SO\/SPA.aspx/];
-  urls[LOGIN_RESULT.INVALID_PASSWORD] = [
-    /InternalSite\/CustomUpdate\/leumi\/LoginPage.ASP/
-  ];
+  urls[LOGIN_RESULT.SUCCESS] = [/ebanking\/SO\/SPA.aspx/i];
+  urls[LOGIN_RESULT.INVALID_PASSWORD] = [/InternalSite\/CustomUpdate\/leumi\/LoginPage.ASP/];
   // urls[LOGIN_RESULT.CHANGE_PASSWORD] = ``; // TODO should wait until my password expires
   return urls;
 }
@@ -92,17 +91,12 @@ function convertTransactions(txns) {
 
 async function extractCompletedTransactionsFromPage(page) {
   const txns = [];
-  const tdsValues = await pageEvalAll(
-    page,
-    "#WorkSpaceBox #ctlActivityTable tr td",
-    [],
-    tds => {
-      return tds.map(td => ({
-        classList: td.getAttribute("class"),
-        innerText: td.innerText
-      }));
-    }
-  );
+  const tdsValues = await pageEvalAll(page, '#WorkSpaceBox #ctlActivityTable tr td', [], (tds) => {
+    return tds.map((td) => ({
+      classList: td.getAttribute('class'),
+      innerText: td.innerText,
+    }));
+  });
 
   for (const element of tdsValues) {
     if (element.classList.includes("ExtendedActivityColumnDate")) {
@@ -144,17 +138,12 @@ async function extractCompletedTransactionsFromPage(page) {
 
 async function extractPendingTransactionsFromPage(page) {
   const txns = [];
-  const tdsValues = await pageEvalAll(
-    page,
-    "#WorkSpaceBox #trTodayActivityNapaTableUpper tr td",
-    [],
-    tds => {
-      return tds.map(td => ({
-        classList: td.getAttribute("class"),
-        innerText: td.innerText
-      }));
-    }
-  );
+  const tdsValues = await pageEvalAll(page, '#WorkSpaceBox #trTodayActivityNapaTableUpper tr td', [], (tds) => {
+    return tds.map((td) => ({
+      classList: td.getAttribute('class'),
+      innerText: td.innerText,
+    }));
+  });
 
   for (const element of tdsValues) {
     if (element.classList.includes("Colume1Width")) {
@@ -205,6 +194,16 @@ async function getSummary(page) {
   };
   return summary;
 }
+async function isNoTransactionInDateRangeError(page) {
+  const hasErrorInfoElement = await elementPresentOnPage(page, '.errInfo');
+  if (hasErrorInfoElement) {
+    const errorText = await page.$eval('.errInfo', (errorElement) => {
+      return errorElement.innerText;
+    });
+    return errorText === NO_TRANSACTION_IN_DATE_RANGE_TEXT;
+  }
+  return false;
+}
 
 async function fetchTransactionsForAccount(page, startDate, accountId) {
   let txns = [];
@@ -219,19 +218,6 @@ async function fetchTransactionsForAccount(page, startDate, accountId) {
   );
   await clickButton(page, "input#btnDisplayDates");
   await waitForNavigation(page);
-  await waitUntilElementFound(
-    page,
-    "table#WorkSpaceBox table#ctlActivityTable, #NOINFORMATIONREGIONSERVERSIDEERROR"
-  );
-
-  const hasExpandAllButton = await elementPresentOnPage(
-    page,
-    "a#lnkCtlExpandAllInPage"
-  );
-
-  if (hasExpandAllButton) {
-    await clickButton(page, "a#lnkCtlExpandAllInPage");
-  }
 
   const selectedSnifAccount = await page.$eval(
     '#ddlAccounts_m_ddl option[selected="selected"]',
@@ -243,17 +229,30 @@ async function fetchTransactionsForAccount(page, startDate, accountId) {
   const snifAccount = selectedSnifAccount.replace("/", "_").replace(" ", "");
   const accountNumber = `10-${snifAccount}`;
 
-  const noTransactionElm = await page.$("#NOINFORMATIONREGIONSERVERSIDEERROR");
-  if (noTransactionElm == null) {
-    const expandButton = await page.$("#a#lnkCtlExpandAllInPage");
-    if (expandButton != null) {
-      await clickButton(page, "a#lnkCtlExpandAllInPage");
-    }
+  await Promise.race([
+    waitUntilElementFound(page, 'table#WorkSpaceBox table#ctlActivityTable', false),
+    waitUntilElementFound(page, '.errInfo', false),
+  ]);
 
-    const pendingTxns = await extractPendingTransactionsFromPage(page);
-    const completedTxns = await extractCompletedTransactionsFromPage(page);
-    txns = [...pendingTxns, ...completedTxns];
+  if (await isNoTransactionInDateRangeError(page)) {
+    return {
+      accountNumber,
+      txns: [],
+    };
   }
+
+  const hasExpandAllButton = await elementPresentOnPage(page, 'a#lnkCtlExpandAllInPage');
+
+  if (hasExpandAllButton) {
+    await clickButton(page, 'a#lnkCtlExpandAllInPage');
+  }
+
+  const pendingTxns = await extractPendingTransactionsFromPage(page);
+  const completedTxns = await extractCompletedTransactionsFromPage(page);
+  const txns = [
+    ...pendingTxns,
+    ...completedTxns,
+  ];
 
   return {
     accountNumber,

@@ -1,4 +1,4 @@
-{
+module.exports = {
   "rules": {
     "arrow-body-style": 0,
     "no-shadow": 0,
@@ -16,13 +16,17 @@
       "ignoreRegExpLiterals": true,
       "ignoreStrings": true,
       "ignoreTemplateLiterals": true
-    }]
+    }],
+    "linebreak-style": process.platform === "win32"? 0: 2
   },
   "globals": {
     "document": true,
     "window": true,
     "fetch": true,
     "Headers": true
+  },
+  "env": {
+    "jest": true
   },
   "extends": "airbnb-base"
 }

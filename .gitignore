@@ -62,3 +62,5 @@ lib/
 
 # IDEs
 .idea
+.vscode
+.DS_Store

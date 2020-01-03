@@ -1,6 +1,6 @@
 {
   "name": "israeli-bank-scrapers",
-  "version": "0.6.8",
+  "version": "0.8.0",
   "description": "Provide scrapers for all major Israeli banks and credit card companies",
   "engines": {
     "node": ">= 8.2.1",
@@ -8,11 +8,18 @@
   },
   "main": "lib/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "eslint src playground",
-    "start": "node -r babel-register playground/scrape.js",
-    "setup": "node -r babel-register playground/setup.js",
-    "prepublishOnly": "babel src --out-dir lib"
+    "clean": "rimraf lib",
+    "test": "cross-env BABEL_ENV=test jest",
+    "test:ci": "ncp tests/.tests-config.tpl.js tests/.tests-config.js && npm run test",
+    "lint": "eslint src",
+    "build": "npm run clean && babel src --out-dir lib",
+    "prebuild": "node utils/update-puppeteer-config.js",
+    "prepare:core": "node utils/prepare-israeli-bank-scrapers-core.js && npm i --package-lock-only && npm ci && npm run build",
+    "prepare:default": "npm ci && npm run build",
+    "reset": "git reset --hard && npm ci",
+    "publish:core": "npm run prepare:core && npm publish --access public && npm run reset",
+    "publish:default": "npm run prepare:default && npm test && npm publish --access public && npm run reset",
+    "publish:all": "npm run publish:default && npm run publish:core"
   },
   "pre-commit": [
     "lint"
@@ -33,27 +40,32 @@
   },
   "homepage": "https://github.com/eshaham/israeli-bank-scrapers#readme",
   "devDependencies": {
-    "babel-cli": "^6.26.0",
-    "babel-plugin-transform-es2015-arrow-functions": "^6.22.0",
-    "babel-plugin-transform-es2015-block-scoping": "^6.26.0",
-    "babel-plugin-transform-es2015-shorthand-properties": "^6.24.1",
-    "babel-preset-env": "^1.7.0",
-    "babel-register": "^6.26.0",
-    "eslint": "^5.4.0",
-    "eslint-config-airbnb-base": "^13.1.0",
+    "@babel/cli": "^7.4.4",
+    "@babel/core": "^7.4.5",
+    "@babel/preset-env": "^7.4.5",
+    "babel-jest": "^24.8.0",
+    "babel-plugin-import-visitor": "^0.2.0",
+    "cross-env": "^6.0.3",
+    "eslint": "^6.6.0",
+    "eslint-config-airbnb-base": "^14.0.0",
     "eslint-plugin-import": "^2.14.0",
-    "inquirer": "^6.1.0",
+    "jest": "^24.8.0",
     "json2csv": "^4.2.1",
-    "jsonfile": "^5.0.0",
-    "pre-commit": "^1.2.2"
+    "ncp": "^2.0.0",
+    "pre-commit": "^1.2.2",
+    "rimraf": "^3.0.0"
   },
   "dependencies": {
-    "babel-polyfill": "^6.26.0",
-    "build-url": "^1.1.2",
+    "build-url": "^2.0.0",
+    "core-js": "^3.1.4",
     "lodash": "^4.17.10",
     "moment": "^2.22.2",
     "node-fetch": "^2.2.0",
-    "puppeteer": "^1.7.0",
-    "uuid": "^3.3.2"
-  }
+    "uuid": "^3.3.2",
+    "puppeteer": "^2.0.0"
+  },
+  "files": [
+    "lib/**/*",
+    "puppeteer-config.json"
+  ]
 }
