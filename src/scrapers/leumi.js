@@ -206,7 +206,6 @@ async function isNoTransactionInDateRangeError(page) {
 }
 
 async function fetchTransactionsForAccount(page, startDate, accountId) {
-  let txns = [];
   await dropdownSelect(page, "select#ddlAccounts_m_ddl", accountId);
   await dropdownSelect(page, "select#ddlTransactionPeriod", "004");
   await waitUntilElementFound(page, "select#ddlTransactionPeriod");
