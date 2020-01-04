@@ -163,7 +163,11 @@ async function fetchTransactionsForAccount(page, startDate) {
       if (hasNextPage) {
         await clickButton(page, '#Npage');
         await waitForNavigation(page);
-        await waitUntilElementFound(page, 'table#dataTable077');
+        await waitUntilElementFound(page, 'table#dataTable077, #NO_DATA077');
+        const noTransactionElm = await page.$('#NO_DATA077');
+        if (noTransactionElm != null) {
+          hasNextPage = false;
+        }
       }
     }
   }
