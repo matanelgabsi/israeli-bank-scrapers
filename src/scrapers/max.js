@@ -22,6 +22,8 @@ const INSTALLMENTS_TYPE_NAME = 'תשלומים';
 const MONTHLY_CHARGE_TYPE_NAME = 'חיוב חודשי';
 const ONE_MONTH_POSTPONED_TYPE_NAME = 'דחוי חודש';
 const MONTHLY_POSTPONED_TYPE_NAME = 'דחוי לחיוב החודשי';
+const MONTHLY_PAYMENT_TYPE_NAME = 'תשלום חודשי';
+const FUTURE_PURCHASE_FINANCING = 'מימון לרכישה עתידית';
 const MONTHLY_POSTPONED_INSTALLMENTS_TYPE_NAME = 'דחוי חודש תשלומים';
 const THIRTY_DAYS_PLUS_TYPE_NAME = 'עסקת 30 פלוס';
 const TWO_MONTHS_POSTPONED_TYPE_NAME = 'דחוי חודשיים';
@@ -63,6 +65,8 @@ function getTransactionType(txnTypeStr) {
     case MONTHLY_CHARGE_TYPE_NAME:
     case ONE_MONTH_POSTPONED_TYPE_NAME:
     case MONTHLY_POSTPONED_TYPE_NAME:
+    case FUTURE_PURCHASE_FINANCING:
+    case MONTHLY_PAYMENT_TYPE_NAME:
     case MONTHLY_POSTPONED_INSTALLMENTS_TYPE_NAME:
     case THIRTY_DAYS_PLUS_TYPE_NAME:
     case TWO_MONTHS_POSTPONED_TYPE_NAME:
@@ -195,7 +199,7 @@ function createLoginFields(inputGroupName, credentials) {
   ];
 }
 
-class LeumiCardScraper extends BaseScraperWithBrowser {
+class MaxScraper extends BaseScraperWithBrowser {
   getLoginOptions(credentials) {
     const inputGroupName = 'PlaceHolderMain_CardHoldersLogin1';
     return {
@@ -228,4 +232,4 @@ class LeumiCardScraper extends BaseScraperWithBrowser {
   }
 }
 
-export default LeumiCardScraper;
+export default MaxScraper;

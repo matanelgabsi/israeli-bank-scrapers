@@ -10,11 +10,10 @@ export default {
   },
   credentials: { // commented companies will be skipped automatically, uncomment those you wish to test
     // hapoalim: { userCode: '', password: '' },
-    // hapoalimBeOnline: { userCode: '', password: '' },
     // leumi: { username: '', password: '' },
     // discount: { id: '', password: '', num: '' },
     // otsarHahayal: { username: '', password: '' },
-    // leumiCard: { username: '', password: '' },
+    // max: { username: '', password: '' },
     // visaCal: { username: '', password: '' },
     // isracard: { id: '', password: '', card6Digits: '' },
     // amex: { id: '', card6Digits: '', password: ''},
