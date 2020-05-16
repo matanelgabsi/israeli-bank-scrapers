@@ -188,16 +188,16 @@ async function waitForPostLogin(page) {
   // TODO check for condition to provide new password
   return Promise.race([
     waitUntilElementFound(page, 'div.lotusFrame', true),
-    waitUntilElementFound(page, 'div.fibi_pwd_error', true),
+    waitUntilElementFound(page, 'div#validationMsg', true),
   ]);
 }
 
 class OtsarHahayalScraper extends BaseScraperWithBrowser {
   getLoginOptions(credentials) {
     return {
-      loginUrl: `${BASE_URL}/LoginServices/login2.do?bankId=OTSARPRTAL`,
+      loginUrl: `${BASE_URL}/MatafLoginService/MatafLoginServlet?bankId=OTSARPRTAL&site=Private&KODSAFA=HE`,
       fields: createLoginFields(credentials),
-      submitButtonSelector: '#login_btn',
+      submitButtonSelector: '#continueBtn',
       postAction: async () => waitForPostLogin(this.page),
       possibleResults: getPossibleLoginResults(),
     };
